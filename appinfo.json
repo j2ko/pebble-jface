@@ -17,12 +17,10 @@
     "media": [
         {
             "type" : "bitmap",
-            "name": "KRANG2",
+            "name": "KRANG",
             "file" : "images/krang_face.png",
             "spaceOptimization": "memory"
-            
         }
-
     ]
   }
 }

@@ -132,7 +132,7 @@ static void main_window_load(Window *window) {
   layer_set_update_proc(s_canvas_layer, main_update_proc);
   
   // Bitmap layer
-  s_bitmap = gbitmap_create_with_resource(RESOURCE_ID_KRANG2);
+  s_bitmap = gbitmap_create_with_resource(RESOURCE_ID_KRANG);
   s_bitmap_layer = bitmap_layer_create(s_canvas_bounds);
   bitmap_layer_set_bitmap(s_bitmap_layer, s_bitmap);
   bitmap_layer_set_compositing_mode(s_bitmap_layer, GCompOpSet);
