@@ -7,33 +7,32 @@
 //--- STATIC -----
 Window *s_main_window;
 TextLayer *s_time_layer;
+TextLayer *s_date_layer;
 Layer* s_canvas_layer;
 GRect s_canvas_bounds;
 
 static GBitmap *s_bitmap;
 static BitmapLayer *s_bitmap_layer;
 
-static char s_time_text[] = "00:00";
 #ifndef DEBUG
 #define TIME_FMT_STR "%H:%M" 
 #else
 #define TIME_FMT_STR "%M:%S"
 #endif
 static const char * TIME_FMT = TIME_FMT_STR;
-
+static const char * DATE_FMT = "%A %d | %b";
 int s_x = 0;
 int s_direction = 1;
 //----------------
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
-  //unsigned int changed = (unsigned int)units_changed;
+  static char time_buff[] = "00:00";
+  strftime(time_buff, sizeof(time_buff), TIME_FMT, tick_time);
+  text_layer_set_text(s_time_layer, time_buff);
   
-  //s_x = (s_x + s_direction * units_changed)%36;  
- // layer_mark_dirty(s_canvas_layer);
-  
-
-  strftime(s_time_text, sizeof(s_time_text), TIME_FMT, tick_time);
-  text_layer_set_text(s_time_layer, s_time_text);
+  static char date_buff[32];
+  strftime(date_buff, sizeof(date_buff), DATE_FMT, tick_time);
+  text_layer_set_text(s_date_layer, date_buff);
 }
 
 static Point rotate_point(Point p, Point anchor, double angle) {
@@ -112,14 +111,25 @@ static void draw_quadrilateral_simple(GContext *ctx) {
 }
 
 static void main_update_proc(Layer *layer, GContext *ctx) {  
+//    graphics_context_set_fill_color(ctx, GColorFromHEX(0xff8000));
+    const int margin = 6;
+    const int height = 60;
+    GRect border = GRect(margin, s_canvas_bounds.size.h - height - margin, s_canvas_bounds.size.w - 2*margin, height);
+    GRect inner  = GRect(border.origin.x + 2, border.origin.y + 2, border.size.w - 4, border.size.h - 4);
+        
+    graphics_context_set_stroke_width(ctx, 4);
     graphics_context_set_stroke_color(ctx, GColorOrange);
-    graphics_context_set_stroke_width(ctx, 5);
-    graphics_context_set_fill_color(ctx, GColorFromHEX(0xff8000));
-    const int margin = 5;
-    const int height = 58;
-    graphics_draw_round_rect(ctx, GRect(margin, s_canvas_bounds.size.h - height - margin, s_canvas_bounds.size.w - 2*margin, height), 15);
-            
-    //    draw_quadrilateral_simple(ctx);
+    graphics_draw_round_rect(ctx, inner, 15);
+    
+    graphics_context_set_stroke_width(ctx, 1);
+    graphics_context_set_stroke_color(ctx, GColorBlack);
+    graphics_draw_round_rect(ctx, border , 15);
+    
+    GRect date_fix = GRect(margin*2, s_canvas_bounds.size.h/2 + 23, s_canvas_bounds.size.w - margin*4, 14);
+    graphics_context_set_fill_color(ctx, GColorIndigo);
+    graphics_context_set_stroke_color(ctx, GColorIndigo);
+    graphics_fill_rect(ctx, date_fix, 0, GCornerNone);
+    
 }
 
 static void main_window_load(Window *window) {
@@ -136,17 +146,27 @@ static void main_window_load(Window *window) {
   s_bitmap_layer = bitmap_layer_create(s_canvas_bounds);
   bitmap_layer_set_bitmap(s_bitmap_layer, s_bitmap);
   bitmap_layer_set_compositing_mode(s_bitmap_layer, GCompOpSet);
-  const int height = 42;
-  const int offset = 20;
-  s_time_layer = text_layer_create(GRect(0, s_canvas_bounds.size.h - height - offset , s_canvas_bounds.size.w, height));
-  text_layer_set_text_color(s_time_layer, GColorWhite);
+  const int heightTime = 42;
+  const int offsetTime = 15;
+  s_time_layer = text_layer_create(GRect(0, s_canvas_bounds.size.h - heightTime - offsetTime , s_canvas_bounds.size.w, heightTime));
+  text_layer_set_text_color(s_time_layer, GColorIndigo);
   text_layer_set_background_color(s_time_layer, GColorClear);
   text_layer_set_font(s_time_layer, fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS));
   text_layer_set_text_alignment(s_time_layer, GTextAlignmentCenter);
   
+  //todo: I need custom font for date - to much extra space on top of default
+  const int heightDate = 16;
+  const int offsetDate = 20;
+  s_date_layer = text_layer_create(GRect(0, s_canvas_bounds.size.h/2 + offsetDate , s_canvas_bounds.size.w, heightDate));
+  text_layer_set_text_color(s_date_layer, GColorWhite);
+  text_layer_set_background_color(s_date_layer, GColorClear);
+  text_layer_set_font(s_date_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
+  text_layer_set_text_alignment(s_date_layer, GTextAlignmentCenter);
+  
   // Add it as a child layer to the Window's root layer
   layer_add_child(window_layer, s_canvas_layer);
   layer_add_child(window_layer, text_layer_get_layer(s_time_layer));
+  layer_add_child(window_layer, text_layer_get_layer(s_date_layer));
   layer_add_child(window_layer, bitmap_layer_get_layer(s_bitmap_layer));
 }
 
@@ -171,6 +191,7 @@ void handle_init(void) {
 
 void handle_deinit(void) {
   text_layer_destroy(s_time_layer);
+  text_layer_destroy(s_date_layer);
   window_destroy(s_main_window);
 }
 
