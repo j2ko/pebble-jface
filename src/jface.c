@@ -22,7 +22,7 @@ BatteryChargeState s_battery_state;
 #define TIME_FMT_STR "%M:%S"
 #endif
 static const char * TIME_FMT = TIME_FMT_STR;
-static const char * DATE_FMT = "%A %d | %b";
+static const char * DATE_FMT = "%a %d  | %b";
 int s_x = 0;
 int s_direction = 1;
 //----------------
@@ -140,13 +140,29 @@ static void main_update_proc(Layer *layer, GContext *ctx) {
     graphics_context_set_stroke_color(ctx, GColorIndigo);
     graphics_fill_rect(ctx, date_fix, 0, GCornerNone);
     
-    //Battery indicator 
-    GRect indicator_border = GRect(margin, margin, 15, 10);    
-    GRect battery_level = GRect(margin, margin, (15*s_battery_state.charge_percent)/100, 10);
-    graphics_context_set_stroke_color(ctx, GColorIndigo);
+    //Battery indicator
+    
+    
+    int charge_percent = s_battery_state.is_charging ? 100 : s_battery_state.charge_percent;
+    
+    GRect indicator_border = GRect(margin, margin, 15, 11);    
+    GRect battery_level = GRect(margin, margin, (15*charge_percent)/100, 10);
+    graphics_context_set_fill_color(ctx, GColorFashionMagenta);
     graphics_fill_rect(ctx, battery_level, 0, GCornerNone);
+    graphics_context_set_stroke_color(ctx, GColorIndigo);
     graphics_draw_rect(ctx, indicator_border);
     graphics_draw_rect(ctx, GRect(margin + 15, margin + 3, 2 , 4));
+    
+    if (s_battery_state.is_charging) {
+        //Battery charging        
+        GPoint from = GPoint(indicator_border.origin.x + 3, indicator_border.origin.y + 5);
+        GPoint to = GPoint(from.x + 3, from.y);
+        graphics_context_set_stroke_color(ctx, GColorWhite);
+        graphics_draw_line(ctx, from, to);
+        graphics_draw_rect(ctx, GRect(to.x, to.y-2, 3, 5));
+        graphics_draw_line(ctx, GPoint(to.x + 3, to.y - 1), GPoint(to.x + 4, to.y - 1));
+        graphics_draw_line(ctx, GPoint(to.x + 3, to.y + 1), GPoint(to.x + 4, to.y + 1));
+    }
 }
 
 static void main_window_load(Window *window) {
