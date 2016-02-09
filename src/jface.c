@@ -3,8 +3,8 @@
 #include <include/jutil.h>
 #define DEBUG
 
-//Todo: define app context to hold state.
 //--- STATIC -----
+//Todo: define app context to hold state.
 Window *s_main_window;
 TextLayer *s_time_layer;
 TextLayer *s_date_layer;
@@ -13,6 +13,8 @@ GRect s_canvas_bounds;
 
 static GBitmap *s_bitmap;
 static BitmapLayer *s_bitmap_layer;
+//Battery
+BatteryChargeState s_battery_state;
 
 #ifndef DEBUG
 #define TIME_FMT_STR "%H:%M" 
@@ -33,6 +35,12 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   static char date_buff[32];
   strftime(date_buff, sizeof(date_buff), DATE_FMT, tick_time);
   text_layer_set_text(s_date_layer, date_buff);
+}
+
+static void battery_handler(BatteryChargeState new_state) {
+  // Todo : move battery state to app context
+  s_battery_state = new_state;
+  layer_mark_dirty(s_canvas_layer);
 }
 
 static Point rotate_point(Point p, Point anchor, double angle) {
@@ -111,25 +119,34 @@ static void draw_quadrilateral_simple(GContext *ctx) {
 }
 
 static void main_update_proc(Layer *layer, GContext *ctx) {  
-//    graphics_context_set_fill_color(ctx, GColorFromHEX(0xff8000));
     const int margin = 6;
     const int height = 60;
     GRect border = GRect(margin, s_canvas_bounds.size.h - height - margin, s_canvas_bounds.size.w - 2*margin, height);
     GRect inner  = GRect(border.origin.x + 2, border.origin.y + 2, border.size.w - 4, border.size.h - 4);
-        
+    
+    //Inner border
     graphics_context_set_stroke_width(ctx, 4);
     graphics_context_set_stroke_color(ctx, GColorOrange);
     graphics_draw_round_rect(ctx, inner, 15);
     
+    //Outer border
     graphics_context_set_stroke_width(ctx, 1);
     graphics_context_set_stroke_color(ctx, GColorBlack);
     graphics_draw_round_rect(ctx, border , 15);
     
+    //Date backround
     GRect date_fix = GRect(margin*2, s_canvas_bounds.size.h/2 + 23, s_canvas_bounds.size.w - margin*4, 14);
     graphics_context_set_fill_color(ctx, GColorIndigo);
     graphics_context_set_stroke_color(ctx, GColorIndigo);
     graphics_fill_rect(ctx, date_fix, 0, GCornerNone);
     
+    //Battery indicator 
+    GRect indicator_border = GRect(margin, margin, 15, 10);    
+    GRect battery_level = GRect(margin, margin, (15*s_battery_state.charge_percent)/100, 10);
+    graphics_context_set_stroke_color(ctx, GColorIndigo);
+    graphics_fill_rect(ctx, battery_level, 0, GCornerNone);
+    graphics_draw_rect(ctx, indicator_border);
+    graphics_draw_rect(ctx, GRect(margin + 15, margin + 3, 2 , 4));
 }
 
 static void main_window_load(Window *window) {
@@ -168,6 +185,13 @@ static void main_window_load(Window *window) {
   layer_add_child(window_layer, text_layer_get_layer(s_time_layer));
   layer_add_child(window_layer, text_layer_get_layer(s_date_layer));
   layer_add_child(window_layer, bitmap_layer_get_layer(s_bitmap_layer));
+  
+  //Initial fill of time/date values
+  time_t now = time(NULL);
+  struct tm *t = localtime(&now);
+  tick_handler(t, 0);
+  //Initial fill of battery level
+  s_battery_state = battery_state_service_peek();
 }
 
 static void main_window_unload(Window *window) {
@@ -187,6 +211,8 @@ void handle_init(void) {
   
   tick_timer_service_subscribe(SECOND_UNIT, tick_handler);
   window_stack_push(s_main_window, true);
+  
+  battery_state_service_subscribe(battery_handler);
 }
 
 void handle_deinit(void) {
