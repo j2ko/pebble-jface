@@ -4,7 +4,7 @@
 #define DEBUG
 
 //--- STATIC -----
-//Todo: define app context to hold state.
+//todo: define app context to hold state.
 Window *s_main_window;
 TextLayer *s_time_layer;
 TextLayer *s_date_layer;
@@ -13,9 +13,8 @@ GRect s_canvas_bounds;
 
 static GBitmap *s_bitmap;
 static BitmapLayer *s_bitmap_layer;
-//Battery
 BatteryChargeState s_battery_state;
-
+bool  s_is_connected;
 #ifndef DEBUG
 #define TIME_FMT_STR "%H:%M" 
 #else
@@ -23,9 +22,6 @@ BatteryChargeState s_battery_state;
 #endif
 static const char * TIME_FMT = TIME_FMT_STR;
 static const char * DATE_FMT = "%a %d  | %b";
-int s_x = 0;
-int s_direction = 1;
-//----------------
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   static char time_buff[] = "00:00";
@@ -43,79 +39,9 @@ static void battery_handler(BatteryChargeState new_state) {
   layer_mark_dirty(s_canvas_layer);
 }
 
-static Point rotate_point(Point p, Point anchor, double angle) {
-  double s = sin(angle);
-  double c = cos(angle);
-
-  // translate point back to origin:
-  p.x -= anchor.x;
-  p.y -= anchor.y;
-
-  // rotate point
-  double xnew = p.x * c - p.y * s; 
-  double ynew = p.x * s + p.y * c;
-    
-  return Point(xnew + anchor.x, ynew + anchor.y);
-}
-
-typedef void (*draw_quadrilateral_t)(Point pcenter, GContext *ctx, int sides, float rotation,float radius);
-
-void draw_quadrilateral(Point pcenter, GContext *ctx, int sides, float rotation,float radius) {
-  float dalpha = DEG_TO_RAD(360.0/(float)sides);  
-  Point pnext, p0 = Point(pcenter.x, pcenter.y - radius);
-  p0 = rotate_point(p0, pcenter, rotation);
-  graphics_context_set_stroke_width(ctx, 2);
-  graphics_draw_pixel(ctx, TO_GP(pcenter));
-  for (int i = 0; i < sides; ++i) {    
-    graphics_context_set_stroke_color(ctx, GColorRed );      
-    pnext = rotate_point(p0, pcenter, dalpha);    ;    
-    graphics_draw_line(ctx, TO_GP(p0), TO_GP(pnext));
-    p0 = pnext;
-  }
-}
-
-void draw_quadrilateral_path(Point pcenter, GContext *ctx, int sides, float rotation,float radius) {
-  double dalpha = DEG_TO_RAD(360.0F/(double)sides); 
-  Point p = Point(pcenter.x, pcenter.y - radius);
-  p = rotate_point(p, pcenter, rotation);
-  graphics_context_set_stroke_width(ctx, 2);
-  GPathInfo pathinfo;
-  pathinfo.num_points = sides;
-  pathinfo.points = (GPoint*)malloc(sizeof(GPoint)*sides);  
-  for (int i = 0; i < sides; ++i) {
-      pathinfo.points[i] = TO_GP(p); //    pathinfo.points[i] = p;
-      p = rotate_point(p, pcenter, dalpha);
-  }
-  
-  GPath *path = gpath_create(&pathinfo);
-  graphics_context_set_fill_color(ctx, GColorGreen);
-  gpath_draw_filled(ctx, path);
-  free(pathinfo.points);
-  free(path);
-}
-
-
-static void draw_quadrilateral_simple(GContext *ctx) {
-  Point center = Point(s_canvas_bounds.size.w/2.0, s_canvas_bounds.size.h/2.0);  
-  graphics_context_set_stroke_width(ctx, 5);
-  double radius = 20;
-  int   sides = 4;
-  double angle = DEG_TO_RAD(s_x*10);
-  draw_quadrilateral_t drawQuad = s_x%2 ==0 ? draw_quadrilateral : draw_quadrilateral_path;
-
-  graphics_context_set_antialiased (ctx, true);
-  drawQuad(center, ctx, sides, angle, radius);
-  Point temp = Point(center.x-2*radius, center.y);
-  Point temp2 = Point(center.x, center.y-3.5*radius);
-  temp = rotate_point(temp, center, angle);
-  temp2 = rotate_point(temp2, center, angle);
-  for (int i = 0; i < 6; ++i) {   
-    drawQuad(temp, ctx, sides, angle, radius);  
-    drawQuad(temp2, ctx, sides, angle, radius);  
-    temp = rotate_point(temp, center, DEG_TO_RAD(60));
-    temp2 = rotate_point(temp2, center, DEG_TO_RAD(60));
-  }
-
+static void connection_handler(bool is_connected) {
+  s_is_connected = is_connected;
+  layer_mark_dirty(s_canvas_layer);
 }
 
 static void main_update_proc(Layer *layer, GContext *ctx) {  
@@ -141,8 +67,6 @@ static void main_update_proc(Layer *layer, GContext *ctx) {
     graphics_fill_rect(ctx, date_fix, 0, GCornerNone);
     
     //Battery indicator
-    
-    
     int charge_percent = s_battery_state.is_charging ? 100 : s_battery_state.charge_percent;
     
     GRect indicator_border = GRect(margin, margin, 15, 11);    
@@ -153,8 +77,8 @@ static void main_update_proc(Layer *layer, GContext *ctx) {
     graphics_draw_rect(ctx, indicator_border);
     graphics_draw_rect(ctx, GRect(margin + 15, margin + 3, 2 , 4));
     
+    //Battery charging        
     if (s_battery_state.is_charging) {
-        //Battery charging        
         GPoint from = GPoint(indicator_border.origin.x + 3, indicator_border.origin.y + 5);
         GPoint to = GPoint(from.x + 3, from.y);
         graphics_context_set_stroke_color(ctx, GColorWhite);
@@ -163,6 +87,26 @@ static void main_update_proc(Layer *layer, GContext *ctx) {
         graphics_draw_line(ctx, GPoint(to.x + 3, to.y - 1), GPoint(to.x + 4, to.y - 1));
         graphics_draw_line(ctx, GPoint(to.x + 3, to.y + 1), GPoint(to.x + 4, to.y + 1));
     }
+    
+    //Bluetooth connection indicator   
+    if (s_is_connected) 
+    {
+        //Bluetooth connection indicator vertical
+        int width = 18;
+        int height = 10;        
+        GPoint tmp, pivot = GPoint(s_canvas_bounds.size.w - margin - width, margin + 6);        
+        graphics_context_set_stroke_color(ctx, GColorIndigo);
+        
+        graphics_draw_line(ctx, pivot, GPoint(pivot.x + width, pivot.y));
+        
+        tmp = GPoint(pivot.x + width - 5, pivot.y - 5);        
+        graphics_draw_line(ctx, GPoint(pivot.x + width, pivot.y), tmp);
+        graphics_draw_line(ctx, GPoint(pivot.x + 5, pivot.y + 3), tmp);
+        
+        tmp = GPoint(pivot.x + 5, pivot.y - 5);
+        graphics_draw_line(ctx, pivot, tmp);
+        graphics_draw_line(ctx, GPoint(pivot.x + width - 5, pivot.y + 3), tmp);        
+    }  
 }
 
 static void main_window_load(Window *window) {
@@ -206,8 +150,10 @@ static void main_window_load(Window *window) {
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
   tick_handler(t, 0);
-  //Initial fill of battery level
+  
+  //Initial values of battery level/connection state
   s_battery_state = battery_state_service_peek();
+  s_is_connected = connection_service_peek_pebble_app_connection();
 }
 
 static void main_window_unload(Window *window) {
@@ -227,8 +173,10 @@ void handle_init(void) {
   
   tick_timer_service_subscribe(SECOND_UNIT, tick_handler);
   window_stack_push(s_main_window, true);
-  
-  battery_state_service_subscribe(battery_handler);
+  battery_state_service_subscribe(battery_handler);  
+  connection_service_subscribe((ConnectionHandlers) {
+           .pebblekit_connection_handler = connection_handler,
+  });
 }
 
 void handle_deinit(void) {
