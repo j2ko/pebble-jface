@@ -3,7 +3,7 @@ Pebble.addEventListener('ready', function() {
 });
 
 Pebble.addEventListener('showConfiguration', function() {
-  var url = 'TBD';
+  var url = 'http://j2ko.github.io/krangface-settings/';
   
   console.log('Showing configuration page: ' + url);
 
