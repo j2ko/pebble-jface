@@ -1,7 +1,7 @@
 {
   "uuid": "71f7ba3c-321c-4ca8-bd0e-518a80ef4768",
-  "shortName": "jface",
-  "longName": "jface",
+  "shortName": "krangface",
+  "longName": "krangface",
   "companyName": "j2ko",
   "versionLabel": "1.0",
   "sdkVersion": "3",
@@ -10,8 +10,15 @@
   "watchapp": {
     "watchface": true
   },
+  "capabilities":[
+      "configurable"
+  ],
   "appKeys": {
-    "dummy": 0
+    "backgroundColor" : 0, 
+    "timeColor" : 1,
+    "dateColor" : 2,
+    "twentyFourHourFormat": 3,
+    "defaultChanged" : 4
   },
   "resources": {
     "media": [
